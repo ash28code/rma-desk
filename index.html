@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MacGear RMA Desk</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+/* Layout: operations console — live 3D dock view on top, clean card panels for logging and the register below */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#f6f8fb; --line:#e1e6ed; --edge:#cfd7e2;
+  --fg:#0f1b2d; --muted:#5b6b80; --accent:#1e4fa8; --accent-2:#163d84; --accent-fg:#ffffff; --accent-soft:#e8effb;
+  --ok:#15803d; --ok-bg:#e7f6ec; --warn:#a15c07; --warn-bg:#fdf3e1; --bad:#c42b2b; --bad-bg:#fdeaea;
+  --blue:#1d4ed8; --blue-bg:#e8effe; --purple:#6d28d9; --purple-bg:#f1ebfd; --gray:#475569; --gray-bg:#eef1f5;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --display:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:10px;
+  --shadow:0 1px 2px rgba(15,27,45,.05),0 4px 14px -6px rgba(15,27,45,.08);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e131a; --surface:#151c25; --surface-2:#1a222d; --line:#253041; --edge:#2f3b4d;
+  --fg:#e6ebf2; --muted:#93a1b5; --accent:#7aa7ff; --accent-2:#a5c3ff; --accent-fg:#0b1220; --accent-soft:#1a2a45;
+  --ok:#4ade80; --ok-bg:#12301f; --warn:#fbbf24; --warn-bg:#33270c; --bad:#f87171; --bad-bg:#3a1717;
+  --blue:#93b4ff; --blue-bg:#1a2948; --purple:#c4a5ff; --purple-bg:#2a1f45; --gray:#b4c0cf; --gray-bg:#232c38;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px -8px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e131a; --surface:#151c25; --surface-2:#1a222d; --line:#253041; --edge:#2f3b4d;
+  --fg:#e6ebf2; --muted:#93a1b5; --accent:#7aa7ff; --accent-2:#a5c3ff; --accent-fg:#0b1220; --accent-soft:#1a2a45;
+  --ok:#4ade80; --ok-bg:#12301f; --warn:#fbbf24; --warn-bg:#33270c; --bad:#f87171; --bad-bg:#3a1717;
+  --blue:#93b4ff; --blue-bg:#1a2948; --purple:#c4a5ff; --purple-bg:#2a1f45; --gray:#b4c0cf; --gray-bg:#232c38;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px -8px rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.wrap>*{min-width:0}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.emblem{width:40px;height:40px;flex:none;border-radius:9px;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font-weight:700;font-size:12px;letter-spacing:.04em}
+h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.015em;line-height:1.2;text-wrap:balance}
+h1 small{display:block;font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0;margin-bottom:1px}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--ok)} .dot.err{background:var(--bad)}
+.hazard{height:1px;background:var(--line)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat,.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.stat{padding:14px 16px}
+.stat b{display:block;font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px}
+.stat span{font-size:12px;color:var(--muted);font-weight:500}
+.panel-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-size:15px;margin:0;font-weight:650;letter-spacing:-.01em}
+.panel-b{padding:18px}
+.tabs{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--line)}
+.tabs button{border:0;background:transparent;color:var(--muted);padding:5px 14px;border-radius:6px;font:inherit;font-weight:500;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(15,27,45,.12)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label.f{display:grid;gap:5px;font-size:12px;font-weight:500;color:var(--muted);min-width:0}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--edge);border-radius:7px;padding:8px 10px;width:100%;min-width:0}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+input.code,textarea.code{font-family:var(--mono);text-transform:uppercase}
+textarea{min-height:130px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);padding:0}
+.span2{grid-column:span 2} @media (max-width:520px){.span2{grid-column:auto}}
+.keep{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);cursor:pointer}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+.btn{font:inherit;font-weight:600;border:1px solid var(--edge);background:var(--surface);color:var(--fg);padding:8px 14px;border-radius:7px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--surface-2);border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.msg{font-size:13px} .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)} .msg.warn{color:var(--warn)}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+.preview{margin-top:10px;font-size:13px;display:grid;gap:4px;max-height:180px;overflow:auto}
+.preview div{font-family:var(--mono);font-size:12px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar input[type=search]{flex:1 1 220px;width:auto}
+.toolbar select{width:auto;flex:0 1 auto}
+.rng{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:500}
+.rng input{width:auto}
+.brands{display:flex;flex-wrap:wrap;gap:8px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.chip{font:inherit;font-size:12.5px;font-weight:500;border:1px solid var(--edge);background:var(--surface);color:var(--fg);border-radius:999px;padding:4px 12px;cursor:pointer;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chip em{font-style:normal;color:var(--muted);margin-left:6px;font-weight:400}
+.bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 18px;background:var(--accent-soft);border-bottom:1px solid var(--line)}
+.bulk select{width:auto}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+th{font-size:11.5px;color:var(--muted);font-weight:600;background:var(--surface-2);position:sticky;top:0;cursor:pointer;user-select:none}
+th.nosort{cursor:default}
+tbody tr:hover{background:var(--surface-2)}
+td.code{font-family:var(--mono);font-size:12.5px}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td.notes{white-space:normal;min-width:160px;max-width:280px;color:var(--muted)}
+.dup{background:var(--bad-bg);color:var(--bad);font-weight:600;border-radius:4px;padding:1px 5px}
+.units{margin-left:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 6px;font-family:var(--sans)}
+.st{appearance:none;-webkit-appearance:none;border:0;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600;width:auto;cursor:pointer}
+.st[data-s="Received"]{background:var(--blue-bg);color:var(--blue)}
+.st[data-s="Sent to Brand"]{background:var(--purple-bg);color:var(--purple)}
+.st[data-s="Credit Pending"]{background:var(--warn-bg);color:var(--warn)}
+.st[data-s="Credited"]{background:var(--ok-bg);color:var(--ok)}
+.st[data-s="Rejected"]{background:var(--bad-bg);color:var(--bad)}
+.st[data-s="Closed"]{background:var(--gray-bg);color:var(--gray)}
+.st option{background:var(--surface);color:var(--fg)}
+.yn{font-size:12px;font-weight:600} .yn.y{color:var(--ok)} .yn.n{color:var(--bad)}
+.linkbtn{font:inherit;font-size:12.5px;font-weight:600;background:none;border:0;color:var(--accent);cursor:pointer;padding:2px 4px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:10px 18px;font-size:12px;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);padding:0;width:min(640px,calc(100vw - 32px));box-shadow:0 24px 60px rgba(15,27,45,.25)}
+dialog::backdrop{background:rgba(15,27,45,.45)}
+.banner{padding:10px 14px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:13px;border:1px solid var(--line)}
+.dock{position:relative;height:clamp(320px,44vw,480px);border-radius:var(--r);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--surface-2)}
+.dock canvas{display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab}
+.hud{position:absolute;pointer-events:none;display:grid;gap:1px;font-size:12px;color:var(--muted)}
+.hud.tl{top:12px;left:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;box-shadow:var(--shadow)}
+.hud.tl b{font-size:15px;font-weight:650;color:var(--fg)}
+.eyebrow{font-size:11px;font-weight:600;color:var(--ok);display:flex;align-items:center;gap:6px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.hud.bl{bottom:12px;left:12px;right:12px;display:flex;flex-wrap:wrap;gap:6px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg);background:var(--surface);padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.legend i{width:9px;height:9px;border-radius:2px;background:#2563eb}
+.legend i[data-s="Sent to Brand"]{background:#7c3aed}.legend i[data-s="Credit Pending"]{background:#d97706}.legend i[data-s="Credited"]{background:#16a34a}.legend i[data-s="Rejected"]{background:#dc2626}.legend i[data-s="Closed"]{background:#64748b}
+.hud.br{top:12px;right:12px;font-size:11.5px;background:var(--surface);padding:5px 10px;border-radius:999px;border:1px solid var(--line)}
+@media (max-width:640px){.hud.br{display:none}}
+.tip{position:absolute;z-index:3;pointer-events:none;display:grid;gap:3px;min-width:180px;max-width:230px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);box-shadow:0 10px 30px rgba(15,27,45,.18)}
+.tip b{font-family:var(--mono);color:var(--fg);font-size:13px}
+.tst{justify-self:start;margin-top:3px;padding:1px 8px;border-radius:999px;font-weight:600;background:var(--blue-bg);color:var(--blue)}
+.tst[data-s="Sent to Brand"]{background:var(--purple-bg);color:var(--purple)}.tst[data-s="Credit Pending"]{background:var(--warn-bg);color:var(--warn)}.tst[data-s="Credited"]{background:var(--ok-bg);color:var(--ok)}.tst[data-s="Rejected"]{background:var(--bad-bg);color:var(--bad)}.tst[data-s="Closed"]{background:var(--gray-bg);color:var(--gray)}
+.dock-empty,.dock-no3d{position:absolute;inset:auto 0 50%;text-align:center;color:var(--muted);font-size:14px;display:none;padding:0 16px}
+.dock.empty3d .dock-empty{display:block}.dock.no3d .dock-no3d{display:block}.dock.no3d canvas,.dock.no3d .legend,.dock.no3d .hint{display:none}
+.lock{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px));background:var(--bg)}
+.lock-card{width:min(380px,100%);display:grid;gap:14px;padding:28px 24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);text-align:center}
+.lock-card .emblem{margin:0 auto;width:52px;height:52px;font-size:14px;border-radius:12px}
+.lock-card h2{font-size:20px;margin:0;font-weight:700}
+.lock-card p{margin:0;color:var(--muted);font-size:13px}
+.lock-card input{text-align:center;font-size:16px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+
+
+
+<div class="lock" id="lock" hidden>
+  <form class="lock-card" id="lockForm" autocomplete="on">
+    <div class="emblem" aria-hidden="true">RMA</div>
+    <h2>RMA Desk</h2>
+    <p id="lockText">Enter the team passcode. This device will stay unlocked until someone presses Lock.</p>
+    <input type="password" id="passcode" placeholder="Team passcode" autocomplete="current-password" aria-label="Team passcode">
+    <button class="btn primary" id="unlockBtn" type="submit">Unlock</button>
+    <span class="msg bad" id="lockMsg" role="alert"></span>
+  </form>
+</div>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="emblem" aria-hidden="true">RMA</div><h1><small>MacGear ANZ · Returns receiving</small>RMA Desk</h1></div>
+    <div class="hdr-right"><div class="sync"><span class="dot" id="dot"></span><span id="syncText">Connecting…</span></div><button class="btn" id="lockBtn" type="button">Lock</button></div>
+  </header>
+
+  <div class="hazard" aria-hidden="true"></div>
+
+  <section class="dock" id="dock" aria-label="3D view of the receiving dock: one pallet per pallet number, one box per RMA">
+    <canvas id="dockCanvas"></canvas>
+    <div class="hud tl"><span class="eyebrow">Live</span><b>Receiving dock</b><span id="dockCount">Loading pallets…</span></div>
+    <div class="hud bl legend">
+      <span><i data-s="Received"></i>Received</span><span><i data-s="Sent to Brand"></i>Sent to brand</span><span><i data-s="Credit Pending"></i>Credit pending</span><span><i data-s="Credited"></i>Credited</span><span><i data-s="Rejected"></i>Rejected</span><span><i data-s="Closed"></i>Closed</span>
+    </div>
+    <div class="hud br hint">Drag to rotate · Click a pallet to filter</div>
+    <div class="dock-empty">The dock is clear. Log an RMA below and watch it roll in on the conveyor.</div>
+    <div class="dock-no3d">3D view isn't supported in this browser. Everything else works as normal.</div>
+    <div class="tip" id="dockTip" hidden></div>
+  </section>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><span>RMAs</span><b id="sTotal">–</b></div>
+    <div class="stat"><span>Units</span><b id="sUnits">–</b></div>
+    <div class="stat"><span>Open</span><b id="sOpen">–</b></div>
+    <div class="stat"><span>Credit pending</span><b id="sPending">–</b></div>
+    <div class="stat"><span>Credited</span><b id="sCredited">–</b></div>
+    <div class="stat"><span>Logged today</span><b id="sToday">–</b></div>
+  </section>
+
+  <section class="panel" aria-label="Log RMAs">
+    <div class="panel-h">
+      <h2>Log received RMAs</h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabSingle" aria-selected="true">Single</button>
+        <button role="tab" id="tabBatch" aria-selected="false">Batch paste</button>
+      </div>
+    </div>
+    <div class="panel-b">
+      <form id="formShared" class="grid" onsubmit="return false">
+        <label class="f">Date received<input type="date" id="fDate" required></label>
+        <label class="f">Brand<input id="fBrand" class="code" list="brandList" placeholder="EUFY" autocomplete="off" required></label>
+        <label class="f">Pallet<input id="fPallet" placeholder="1" autocomplete="off"></label>
+        <label class="f">Status<select id="fStatus"></select></label>
+        <label class="f">Stock checked<select id="fStock"><option>Yes</option><option>No</option></select></label>
+        <label class="f">Entered in system<select id="fEntered"><option>Yes</option><option>No</option></select></label>
+      </form>
+      <datalist id="brandList"></datalist>
+
+      <div id="paneSingle" style="margin-top:12px">
+        <form id="formSingle" class="grid" onsubmit="return false">
+          <label class="f">RMA #<input id="fRma" class="code" placeholder="RMA009171" autocomplete="off"></label>
+          <label class="f">SKU<input id="fSku" class="code" placeholder="T2353T11" autocomplete="off"></label>
+          <label class="f"><span id="serialLbl">Serial #</span><input id="fSerial" class="code" placeholder="Optional" autocomplete="off"></label>
+          <label class="f">Qty<input id="fQty" type="number" min="1" value="1"></label>
+          <label class="f span2">Notes<input id="fNotes" autocomplete="off"></label>
+        </form>
+        <label class="keep" style="margin-top:12px"><input type="checkbox" id="fKeep"> Same RMA, more units: keep RMA # and SKU after adding, so you only scan the next serial</label>
+        <div class="actions">
+          <button class="btn primary" id="addOne">Add RMA</button>
+          <span class="msg" id="msgSingle" role="status"></span>
+        </div>
+        <p class="hint">Brand, date, pallet and status stay filled after each add, so you can scan the next parcel straight in.</p>
+      </div>
+
+      <div id="paneBatch" hidden style="margin-top:12px">
+        <label class="f">One unit per line: RMA #, SKU, Serial — separated by spaces, tabs or commas. Add x2 for 2 units. Serial is required for MOVA.
+          <textarea id="fBatch" class="code" placeholder="RMA009171 T2353T11&#10;RMA009486 T2081T11 x2&#10;RMA009520 V10 MV2411A00123"></textarea>
+        </label>
+        <div class="preview" id="batchPreview"></div>
+        <div class="actions">
+          <button class="btn primary" id="addBatch" disabled>Add 0 RMAs</button>
+          <span class="msg" id="msgBatch" role="status"></span>
+        </div>
+        <p class="hint">Lines that would cause a discrepancy are flagged and skipped: a serial already logged, an RMA # already logged without a serial, a MOVA unit with no serial, or a line with extra values.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="register" aria-label="RMA register">
+    <div class="panel-h">
+      <div class="toolbar" style="flex:1 1 auto">
+        <input type="search" id="q" placeholder="Search RMA #, SKU, serial, notes…" aria-label="Search">
+        <select id="filterStatus" aria-label="Status filter"><option value="">All statuses</option><option value="__open">Open only</option></select>
+        <select id="filterPallet" aria-label="Pallet filter"><option value="">All pallets</option></select>
+        <select id="filterRange" aria-label="Date range"><option value="">All dates</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="lastmonth">Last month</option><option value="last30">Last 30 days</option><option value="custom">Custom range</option></select>
+        <label class="rng">From <input type="date" id="dFrom"></label>
+        <label class="rng">To <input type="date" id="dTo"></label>
+        <button class="linkbtn" id="clearFilters">Clear filters</button>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="exportView">Export view (.xlsx)</button>
+        <button class="btn primary" id="exportPallets">Pallet manifest (.xlsx)</button>
+        <button class="btn" id="exportAll">Export all brands</button>
+      </div>
+    </div>
+    <div class="brands" id="brandChips"></div>
+    <div class="bulk" id="bulkBar" hidden>
+      <b id="bulkCount">0 selected</b>
+      <select id="bulkStatus" aria-label="Set status"></select>
+      <button class="btn primary" id="bulkApply">Set status</button>
+      <input id="bulkPallet" placeholder="Pallet" style="width:90px" aria-label="Move to pallet">
+      <button class="btn" id="bulkPalletApply">Move to pallet</button>
+      <button class="linkbtn" id="bulkClear">Clear selection</button>
+      <span class="msg" id="msgBulk"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th class="nosort"><input type="checkbox" id="selAll" aria-label="Select all shown"></th>
+          <th data-k="date">Received</th><th data-k="brand">Brand</th><th data-k="rma">RMA #</th><th data-k="sku">SKU</th>
+          <th data-k="serial">Serial #</th><th data-k="pallet">Pallet</th><th data-k="qty">Qty</th><th data-k="status">Status</th>
+          <th data-k="stock">Stock</th><th data-k="entered">System</th><th data-k="notes">Notes</th><th class="nosort"></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty">Loading the register… once connected, RMAs you log above appear here.</div>
+    </div>
+    <div class="foot"><span id="footCount"></span><span>Duplicate RMA # or serial numbers show in red.</span></div>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <div class="panel-h"><h2>Edit RMA</h2><button class="linkbtn" id="dlgClose">Close</button></div>
+  <div class="panel-b">
+    <form class="grid" id="formEdit" onsubmit="return false">
+      <label class="f">Date received<input type="date" id="eDate"></label>
+      <label class="f">Brand<input id="eBrand" class="code" list="brandList"></label>
+      <label class="f">RMA #<input id="eRma" class="code"></label>
+      <label class="f">SKU<input id="eSku" class="code"></label>
+      <label class="f">Serial #<input id="eSerial" class="code"></label>
+      <label class="f">Pallet<input id="ePallet"></label>
+      <label class="f">Qty<input id="eQty" type="number" min="1"></label>
+      <label class="f">Status<select id="eStatus"></select></label>
+      <label class="f">Stock checked<select id="eStock"><option>Yes</option><option>No</option></select></label>
+      <label class="f">Entered in system<select id="eEntered"><option>Yes</option><option>No</option></select></label>
+      <label class="f span2">Notes<input id="eNotes"></label>
+    </form>
+    <div class="actions">
+      <button class="btn primary" id="eSave">Save changes</button>
+      <button class="btn danger" id="eDelete">Delete</button>
+      <span class="msg" id="msgEdit"></span>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const STATUSES=["Received","Sent to Brand","Credit Pending","Credited","Rejected","Closed"];
+const CLOSED=new Set(["Credited","Closed","Rejected"]);
+const $=id=>document.getElementById(id);
+// ===== SETTINGS: filled in from your Supabase project (Project Settings > API Keys) =====
+const SUPABASE_URL = "https://olmdbljjdwiauhzulxwa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_TkqhBgVQ2HFO-2ZFBSwfSA_azoM15Cm";
+const TEAM_EMAIL   = "rmadesk.team@example.com";   // the shared team login; must match setup.sql
+// ===================================================================================
+let sb=null, col=null, rows=[], sortK="date", sortDir="desc", brandFilter="", selected=new Set(), editId=null, delArmed=false;
+
+const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Australia/Sydney"}).format(new Date());
+const up=s=>(s||"").toString().trim().toUpperCase();
+const esc=s=>(s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDate=d=>{if(!d)return"";const [y,m,dd]=d.split("-").map(Number);return new Date(y,m-1,dd).toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})};
+const newId=()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+for(const sel of ["fStatus","eStatus","bulkStatus"]) $(sel).innerHTML=STATUSES.map(s=>`<option>${s}</option>`).join("");
+$("filterStatus").insertAdjacentHTML("beforeend",STATUSES.map(s=>`<option>${s}</option>`).join(""));
+$("fDate").value=today();
+try{const b=localStorage.getItem("rma.brand"); if(b)$("fBrand").value=b;}catch(e){}
+setTimeout(()=>serialHint(),0);
+
+// ---------- data ----------
+function setSync(state,text){$("dot").className="dot "+(state||"");$("syncText").textContent=text}
+const FIELDS=["date","brand","rma","sku","serial","pallet","qty","status","stock","entered","notes"];
+const fromDb=r=>({id:r.id,date:r.date,brand:r.brand,rma:r.rma,sku:r.sku||"",serial:r.serial||"",pallet:r.pallet,qty:r.qty,status:r.status,stock:r.stock,entered:r.entered,notes:r.notes||"",createdAt:r.created_at,updatedAt:r.updated_at});
+const toDb=d=>{const o={};for(const k of FIELDS)if(k in d)o[k]=d[k];return o};
+function upsertLocal(r){const i=rows.findIndex(x=>x.id===r.id);if(i>=0)rows[i]=r;else rows.push(r)}
+// "col" keeps the same shape the rest of the page already uses
+col={doc:id=>({
+  update:async patch=>{const {data,error}=await sb.from("rmas").update({...toDb(patch),updated_at:new Date().toISOString()}).eq("id",id).select();if(error)throw error;if(!data||!data.length)throw{code:"not_found"};upsertLocal(fromDb(data[0]));render()},
+  delete:async()=>{const {error}=await sb.from("rmas").delete().eq("id",id);if(error)throw error;rows=rows.filter(r=>r.id!==id);render()}
+})};
+async function loadAll(){
+  const all=[];
+  for(let from=0;;from+=1000){
+    const {data,error}=await sb.from("rmas").select("*").order("created_at",{ascending:true}).order("id").range(from,from+999);
+    if(error)throw error; all.push(...data); if(data.length<1000)break;
+  }
+  rows=all.map(fromDb); window.__gotData=true; render();
+}
+let channel=null;
+async function startSync(){
+  setSync("","Loading…");
+  try{await loadAll()}catch(e){if(isAuthErr(e)){showLock("Your session ended. Enter the passcode again.");return}setSync("err","Can't reach the register");$("empty").textContent="The register can't be reached. Check your connection, then reload.";return}
+  if(channel)sb.removeChannel(channel);
+  channel=sb.channel("rmas-live").on("postgres_changes",{event:"*",schema:"public",table:"rmas"},p=>{
+    if(p.eventType==="DELETE"){rows=rows.filter(r=>r.id!==p.old.id)}else upsertLocal(fromDb(p.new));
+    render();
+  }).subscribe(st=>{if(st==="SUBSCRIBED")setSync("live","Live · synced");else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT")setSync("err","Live updates paused · reload to resync")});
+}
+// Full reload whenever the tab comes back into view, so nothing can drift out of sync
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&sb&&$("lock").hidden&&window.__gotData)loadAll().catch(()=>{})});
+function isAuthErr(e){return e&&(e.status===401||e.code==="PGRST301"||e.code==="42501"||/JWT|jwt/.test(e.message||""))}
+function showLock(msg){$("lock").hidden=false;$("lockMsg").textContent=msg||"";setTimeout(()=>$("passcode").focus(),50)}
+async function boot(){
+  if(!window.supabase||SUPABASE_URL.startsWith("PASTE")){setSync("err","Not set up");$("banner").hidden=false;$("banner").textContent="This copy isn't connected to a database yet. Add your Supabase project URL and key at the top of the page's script.";$("empty").textContent="Not connected.";return}
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"rmadesk-auth"}});
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){showLock();setSync("err","Locked");return}
+  startSync();
+}
+$("lockForm").addEventListener("submit",async e=>{
+  e.preventDefault(); const pw=$("passcode").value; if(!pw)return;
+  $("unlockBtn").disabled=true;$("lockMsg").textContent="";
+  const {error}=await sb.auth.signInWithPassword({email:TEAM_EMAIL,password:pw});
+  $("unlockBtn").disabled=false;
+  if(error){$("lockMsg").textContent=/invalid/i.test(error.message)?"Wrong passcode. Try again.":"Couldn't unlock: "+error.message;return}
+  $("passcode").value="";$("lock").hidden=true;startSync();
+});
+$("lockBtn").onclick=async()=>{if(!sb)return;if(channel)sb.removeChannel(channel);await sb.auth.signOut();rows=[];window.__gotData=false;render();showLock("Locked. Enter the passcode to open the register.");setSync("err","Locked")};
+boot();
+
+// Brands whose every unit must carry a serial number
+const SERIAL_REQUIRED=new Set(["MOVA"]);
+const needsSerial=b=>SERIAL_REQUIRED.has(up(b));
+// A unit is identified by its serial when it has one, otherwise by its RMA #.
+// So one MOVA RMA can hold several serials, but the same serial can never be logged twice.
+const unitKey=r=>r.serial?"S:"+up(r.serial):"R:"+up(r.rma);
+function dupCounts(list){const c={};for(const r of list){const k=unitKey(r);c[k]=(c[k]||0)+1}return c}
+function dupMaps(){return dupCounts(rows)}
+function findExisting(rma,serial){
+  const k=serial?"S:"+up(serial):"R:"+up(rma);
+  return rows.find(r=>unitKey(r)===k);
+}
+function sharedFields(){
+  return {date:$("fDate").value||today(),brand:up($("fBrand").value),pallet:$("fPallet").value.trim(),status:$("fStatus").value,stock:$("fStock").value,entered:$("fEntered").value};
+}
+async function writeRow(data){
+  const {data:out,error}=await sb.from("rmas").insert(toDb(data)).select();
+  if(error)throw error; upsertLocal(fromDb(out[0])); render();
+}
+function writeErr(e){
+  if(!e)return"Couldn't save. Check your connection and try again.";
+  if(e.code==="23505")return"Not saved: that serial number is already in the register.";
+  if(e.code==="23514")return /mova/i.test(e.message||"")?"Not saved: MOVA units need a serial number.":"Not saved: one of the values isn't allowed.";
+  if(isAuthErr(e)){showLock("Your session ended. Enter the passcode again.");return"Locked. Enter the passcode and try again."}
+  if(e.code==="not_found")return"That RMA was changed or deleted by someone else. The list has been refreshed.";
+  return"Couldn't save ("+(e.message||"connection problem")+"). Nothing was changed.";
+}
+
+// ---------- single add ----------
+$("addOne").onclick=async()=>{
+  const m=$("msgSingle"); m.className="msg";
+  if(!sb||!window.__gotData){m.className="msg bad";m.textContent="Not connected to the register.";return}
+  const s=sharedFields(); const rma=up($("fRma").value), sku=up($("fSku").value);
+  // Several serials can be entered at once (space or comma separated): one line per unit
+  const serials=[...new Set(up($("fSerial").value).split(/[\s,;]+/).filter(Boolean))];
+  if(!s.brand||!rma){m.className="msg bad";m.textContent="Brand and RMA # are required.";return}
+  if(!s.pallet){m.className="msg bad";m.textContent="Enter the pallet number first.";$("fPallet").focus();return}
+  if(needsSerial(s.brand)&&!serials.length){m.className="msg bad";m.textContent=`${s.brand} needs a serial number for every unit.`;$("fSerial").focus();return}
+  for(const sn of serials){const ex=findExisting(rma,sn);if(ex){m.className="msg bad";m.textContent=`Serial ${sn} is already logged on ${up(ex.rma)} (${ex.brand}, pallet ${ex.pallet||"–"}, ${fmtDate(ex.date)}). Nothing added.`;return}}
+  if(!serials.length){const ex=findExisting(rma,"");
+    if(ex && !$("addOne").dataset.force){m.className="msg warn";m.textContent=`${up(ex.rma)} is already logged without a serial (${ex.brand}, pallet ${ex.pallet||"–"}, ${fmtDate(ex.date)}). Click Add again to log it anyway.`;$("addOne").dataset.force="1";return}}
+  delete $("addOne").dataset.force;
+  $("addOne").disabled=true;
+  const qty=serials.length>1?1:Math.max(1,parseInt($("fQty").value)||1), notes=$("fNotes").value.trim();
+  const before=rows.filter(r=>up(r.rma)===rma).length;
+  try{
+    if(serials.length)for(const sn of serials)await writeRow({...s,rma,sku,serial:sn,qty,notes});
+    else await writeRow({...s,rma,sku,serial:"",qty,notes});
+    try{localStorage.setItem("rma.brand",s.brand)}catch(e){}
+    const unitsOnRma=before+Math.max(1,serials.length);
+    m.className="msg ok";m.textContent=`Logged ${rma}${serials.length?" · "+serials.join(", "):""} · ${s.brand} · pallet ${s.pallet}`+(unitsOnRma>1?` · ${unitsOnRma} units on this RMA`:"");
+    $("fSerial").value=$("fNotes").value="";$("fQty").value=1;
+    if($("fKeep").checked){$("fSerial").focus()}else{$("fRma").value=$("fSku").value="";$("fRma").focus()}
+  }catch(e){m.className="msg bad";m.textContent=writeErr(e)}
+  $("addOne").disabled=false;
+};
+
+["fRma","fSku","fSerial"].forEach(id=>$(id).addEventListener("input",()=>{delete $("addOne").dataset.force}));
+$("formSingle").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("addOne").click()}});
+
+// ---------- batch ----------
+function parseBatch(){
+  const out=[]; const seen=new Set();
+  for(const line of $("fBatch").value.split(/\n/)){
+    const t=line.trim(); if(!t)continue;
+    const parts=t.split(/[\s,;\t]+/).filter(Boolean);
+    let qty=1; for(let i=parts.length-1;i>=1;i--){const mq=/^(?:x|×|qty:?)(\d{1,3})$/i.exec(parts[i]);if(mq){qty=Math.max(1,parseInt(mq[1]));parts.splice(i,1);break}}
+    const [rma,sku,serial]=[up(parts[0]),up(parts[1]),up(parts[2])];
+    const extra=parts.length>3;
+    const key=serial?"S:"+serial:"R:"+rma;
+    const ex=findExisting(rma,serial); const inBatch=seen.has(key); seen.add(key);
+    const brand=up($("fBrand").value);
+    const why=!/^[A-Z0-9-]{4,}$/.test(rma)?"RMA # looks wrong":needsSerial(brand)&&!serial?`serial required for ${brand}`:extra?"too many values on this line":ex?`already logged on ${fmtDate(ex.date)} (pallet ${ex.pallet||"–"})`:inBatch?"repeated in this paste":"";
+    out.push({rma,sku,serial,qty,skip:!!why,why});
+  }
+  return out;
+}
+function renderBatch(){
+  const items=parseBatch(); const ok=items.filter(i=>!i.skip);
+  $("batchPreview").innerHTML=items.map(i=>`<div class="${i.skip?"msg warn":""}">${esc(i.rma)} · ${esc(i.sku||"no SKU")}${i.serial?" · "+esc(i.serial):""}${i.qty>1?" · ×"+i.qty:""}${i.skip?" — skipped, "+i.why:""}</div>`).join("");
+  $("addBatch").textContent=`Add ${ok.length} RMA${ok.length===1?"":"s"}`; $("addBatch").disabled=!ok.length;
+}
+$("fBatch").addEventListener("input",renderBatch);
+function serialHint(){const b=up($("fBrand").value);$("fSerial").placeholder=needsSerial(b)?"Scan one or more":"Optional";$("serialLbl").textContent=needsSerial(b)?"Serial # (required)":"Serial #";if(!$("paneBatch").hidden)renderBatch()}
+$("fBrand").addEventListener("input",serialHint);
+$("addBatch").onclick=async()=>{
+  const m=$("msgBatch"); const s=sharedFields();
+  if(!sb||!window.__gotData){m.className="msg bad";m.textContent="Not connected to the register.";return}
+  if(!s.brand){m.className="msg bad";m.textContent="Set the brand above first.";return}
+  if(!s.pallet){m.className="msg bad";m.textContent="Enter the pallet number above first.";$("fPallet").focus();return}
+  const ok=parseBatch().filter(i=>!i.skip); $("addBatch").disabled=true; let n=0;
+  try{
+    for(let i=0;i<ok.length;i+=10){
+      await Promise.all(ok.slice(i,i+10).map(it=>writeRow({...s,rma:it.rma,sku:it.sku,serial:it.serial,qty:it.qty,notes:""})));
+      n+=ok.slice(i,i+10).length; m.className="msg";m.textContent=`Saving ${n}/${ok.length}…`;
+    }
+    try{localStorage.setItem("rma.brand",s.brand)}catch(e){}
+    m.className="msg ok";m.textContent=`Logged ${n} ${s.brand} RMAs on pallet ${s.pallet||"–"}.`; $("fBatch").value=""; renderBatch();
+  }catch(e){m.className="msg bad";m.textContent=`Saved ${n} of ${ok.length}. `+writeErr(e)}
+};
+function setTab(batch){$("tabSingle").setAttribute("aria-selected",!batch);$("tabBatch").setAttribute("aria-selected",batch);$("paneSingle").hidden=batch;$("paneBatch").hidden=!batch;if(batch)renderBatch()}
+$("tabSingle").onclick=()=>setTab(false); $("tabBatch").onclick=()=>setTab(true);
+
+// ---------- register ----------
+function filtered(){
+  const q=$("q").value.trim().toUpperCase(), st=$("filterStatus").value, pal=$("filterPallet").value, dF=$("dFrom").value, dT=$("dTo").value;
+  let list=rows.filter(r=>{
+    if(brandFilter&&r.brand!==brandFilter)return false;
+    if(st==="__open"?CLOSED.has(r.status):st&&r.status!==st)return false;
+    if(pal&&String(r.pallet||"")!==pal)return false;
+    if(dF&&(r.date||"")<dF)return false;
+    if(dT&&(r.date||"")>dT)return false;
+    if(q&&![r.rma,r.sku,r.serial,r.notes,r.brand,r.pallet].some(v=>up(v).includes(q)))return false;
+    return true;
+  });
+  const dir=sortDir==="asc"?1:-1;
+  list.sort((a,b)=>{let x=a[sortK],y=b[sortK];
+    if(sortK==="qty"||(sortK==="pallet"&&!isNaN(x)&&!isNaN(y))){x=Number(x)||0;y=Number(y)||0}else{x=(x??"").toString();y=(y??"").toString()}
+    return (x>y?1:x<y?-1:(a.createdAt||"")>(b.createdAt||"")?1:-1)*dir});
+  return list;
+}
+function render(){
+  const all=rows, t=today();
+  $("sTotal").textContent=all.length;
+  $("sUnits").textContent=all.reduce((s,r)=>s+(Number(r.qty)||0),0);
+  $("sOpen").textContent=all.filter(r=>!CLOSED.has(r.status)).length;
+  $("sPending").textContent=all.filter(r=>r.status==="Credit Pending").length;
+  $("sCredited").textContent=all.filter(r=>r.status==="Credited").length;
+  $("sToday").textContent=all.filter(r=>r.date===t).length;
+
+  const brands=[...new Set(all.map(r=>r.brand).filter(Boolean))].sort();
+  $("brandList").innerHTML=brands.map(b=>`<option value="${esc(b)}">`).join("");
+  $("brandChips").innerHTML=`<button class="chip" data-b="" aria-pressed="${!brandFilter}">All brands<em>${all.length}</em></button>`+
+    brands.map(b=>{const n=all.filter(r=>r.brand===b);return `<button class="chip" data-b="${esc(b)}" aria-pressed="${brandFilter===b}">${esc(b)}<em>${n.length} · ${n.filter(r=>!CLOSED.has(r.status)).length} open</em></button>`}).join("");
+
+  const pallets=[...new Set(all.map(r=>String(r.pallet||"")).filter(Boolean))].sort((a,b)=>(Number(a)||0)-(Number(b)||0)||a.localeCompare(b));
+  const curP=$("filterPallet").value;
+  $("filterPallet").innerHTML=`<option value="">All pallets</option>`+pallets.map(p=>`<option value="${esc(p)}">Pallet ${esc(p)}</option>`).join("");
+  $("filterPallet").value=pallets.includes(curP)?curP:"";
+
+  const dK=dupMaps(); const list=filtered();
+  const perRma={};for(const r of rows){const k=up(r.rma);perRma[k]=(perRma[k]||0)+1}
+  for(const id of [...selected]) if(!rows.some(r=>r.id===id)) selected.delete(id);
+  $("tbody").innerHTML=list.map(r=>`<tr data-id="${r.id}">
+    <td><input type="checkbox" class="sel" ${selected.has(r.id)?"checked":""} aria-label="Select ${esc(r.rma)}"></td>
+    <td>${fmtDate(r.date)}</td><td>${esc(r.brand)}</td>
+    <td class="code">${!r.serial&&dK[unitKey(r)]>1?`<span class="dup" title="RMA # logged more than once without a serial">${esc(r.rma)}</span>`:esc(r.rma)}${perRma[up(r.rma)]>1?`<span class="units" title="Lines logged on this RMA">${perRma[up(r.rma)]} units</span>`:""}</td>
+    <td class="code">${esc(r.sku)}</td>
+    <td class="code">${r.serial?(dK[unitKey(r)]>1?`<span class="dup" title="Serial logged more than once">${esc(r.serial)}</span>`:esc(r.serial)):needsSerial(r.brand)?`<span class="dup">MISSING</span>`:""}</td>
+    <td class="num">${esc(r.pallet)}</td><td class="num">${esc(r.qty)}</td>
+    <td><select class="st" data-s="${esc(r.status)}" aria-label="Status">${STATUSES.map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")}</select></td>
+    <td><span class="yn ${r.stock==="No"?"n":"y"}">${esc(r.stock||"")}</span></td>
+    <td><span class="yn ${r.entered==="No"?"n":"y"}">${esc(r.entered||"")}</span></td>
+    <td class="notes">${esc(r.notes)}</td>
+    <td><button class="linkbtn edit">Edit</button></td></tr>`).join("");
+  $("empty").hidden=list.length>0;
+  if(!list.length)$("empty").textContent=rows.length?"No RMAs match these filters.":"No RMAs yet. Log your first parcel in the form above.";
+  $("footCount").textContent=`Showing ${list.length} of ${rows.length} RMAs · ${list.reduce((s,r)=>s+(Number(r.qty)||0),0)} units`;
+  $("selAll").checked=list.length>0&&list.every(r=>selected.has(r.id));
+  document.querySelectorAll("th[data-k]").forEach(th=>{th.textContent=th.textContent.replace(/ [▲▼]$/,"");if(th.dataset.k===sortK)th.textContent+=sortDir==="asc"?" ▲":" ▼"});
+  updateBulk();
+  if(window.Dock)Dock.update(rows,$("filterPallet").value);
+}
+$("brandChips").addEventListener("click",e=>{const c=e.target.closest(".chip");if(!c)return;brandFilter=c.dataset.b;render()});
+["q","filterStatus","filterPallet"].forEach(id=>$(id).addEventListener("input",render));
+const addDays=(s,n)=>{const [y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)};
+$("filterRange").addEventListener("change",()=>{
+  const v=$("filterRange").value,t=today();let f="",to="";
+  if(v==="today"){f=to=t}
+  else if(v==="week"){const [y,m,d]=t.split("-").map(Number);f=addDays(t,-((new Date(Date.UTC(y,m-1,d)).getUTCDay()+6)%7));to=t}
+  else if(v==="month"){f=t.slice(0,8)+"01";to=t}
+  else if(v==="lastmonth"){to=addDays(t.slice(0,8)+"01",-1);f=to.slice(0,8)+"01"}
+  else if(v==="last30"){f=addDays(t,-29);to=t}
+  if(v==="custom"){$("dFrom").focus();return}
+  $("dFrom").value=f;$("dTo").value=to;render();
+});
+["dFrom","dTo"].forEach(id=>$(id).addEventListener("input",()=>{$("filterRange").value=($("dFrom").value||$("dTo").value)?"custom":"";render()}));
+$("clearFilters").onclick=()=>{$("q").value="";$("filterStatus").value="";$("filterPallet").value="";$("filterRange").value="";$("dFrom").value="";$("dTo").value="";brandFilter="";render()};
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortDir=sortDir==="asc"?"desc":"asc";else{sortK=k;sortDir="asc"}render()});
+
+$("tbody").addEventListener("change",async e=>{
+  const tr=e.target.closest("tr"); const id=tr&&tr.dataset.id;
+  if(e.target.classList.contains("sel")){e.target.checked?selected.add(id):selected.delete(id);updateBulk();$("selAll").checked=filtered().every(r=>selected.has(r.id));return}
+  if(e.target.classList.contains("st")){
+    e.target.dataset.s=e.target.value;
+    try{await col.doc(id).update({status:e.target.value,updatedAt:new Date().toISOString()})}catch(err){setSync("err",writeErr(err));render()}
+  }
+});
+$("tbody").addEventListener("click",e=>{if(e.target.classList.contains("edit"))openEdit(e.target.closest("tr").dataset.id)});
+$("selAll").onchange=e=>{const l=filtered();l.forEach(r=>e.target.checked?selected.add(r.id):selected.delete(r.id));render()};
+
+// ---------- bulk ----------
+function updateBulk(){$("bulkBar").hidden=!selected.size;$("bulkCount").textContent=`${selected.size} selected`}
+async function bulkUpdate(patch,label){
+  const ids=[...selected]; $("msgBulk").className="msg"; $("msgBulk").textContent="Saving…";
+  try{for(let i=0;i<ids.length;i+=10)await Promise.all(ids.slice(i,i+10).map(id=>col.doc(id).update({...patch,updatedAt:new Date().toISOString()})));
+    $("msgBulk").className="msg ok";$("msgBulk").textContent=`${label} on ${ids.length} RMAs.`;selected.clear();render();
+  }catch(e){$("msgBulk").className="msg bad";$("msgBulk").textContent=writeErr(e)}
+}
+$("bulkApply").onclick=()=>bulkUpdate({status:$("bulkStatus").value},`Set ${$("bulkStatus").value}`);
+$("bulkPalletApply").onclick=()=>{const p=$("bulkPallet").value.trim();if(!p){$("msgBulk").className="msg bad";$("msgBulk").textContent="Enter a pallet first.";return}bulkUpdate({pallet:p},`Moved to pallet ${p}`)};
+$("bulkClear").onclick=()=>{selected.clear();$("msgBulk").textContent="";render()};
+
+// ---------- edit ----------
+const EF={date:"eDate",brand:"eBrand",rma:"eRma",sku:"eSku",serial:"eSerial",pallet:"ePallet",qty:"eQty",status:"eStatus",stock:"eStock",entered:"eEntered",notes:"eNotes"};
+function openEdit(id){const r=rows.find(x=>x.id===id);if(!r)return;editId=id;delArmed=false;$("eDelete").textContent="Delete";$("msgEdit").textContent="";
+  for(const[k,el]of Object.entries(EF))$(el).value=r[k]??"";$("dlg").showModal()}
+$("dlgClose").onclick=()=>$("dlg").close();
+$("eSave").onclick=async()=>{
+  const d={};for(const[k,el]of Object.entries(EF))d[k]=$(el).value.trim();
+  ["brand","rma","sku","serial"].forEach(k=>d[k]=up(d[k])); d.qty=Math.max(1,parseInt(d.qty)||1);
+  if(!d.brand||!d.rma){$("msgEdit").className="msg bad";$("msgEdit").textContent="Brand and RMA # are required.";return}
+  if(needsSerial(d.brand)&&!d.serial){$("msgEdit").className="msg bad";$("msgEdit").textContent=`${d.brand} needs a serial number.`;return}
+  if(d.serial){const o=rows.find(r=>r.id!==editId&&r.serial&&up(r.serial)===d.serial);if(o){$("msgEdit").className="msg bad";$("msgEdit").textContent=`Serial ${d.serial} is already on ${o.rma} (pallet ${o.pallet||"–"}).`;return}}
+  try{await col.doc(editId).update({...d,updatedAt:new Date().toISOString()});$("dlg").close()}catch(e){$("msgEdit").className="msg bad";$("msgEdit").textContent=writeErr(e)}
+};
+$("eDelete").onclick=async()=>{
+  if(!delArmed){delArmed=true;$("eDelete").textContent="Confirm delete";$("msgEdit").className="msg warn";$("msgEdit").textContent="This removes the RMA for everyone.";return}
+  try{await col.doc(editId).delete();$("dlg").close()}catch(e){$("msgEdit").className="msg bad";$("msgEdit").textContent=writeErr(e)}
+};
+
+// ---------- export ----------
+const HEAD=["Date Received","Brand","RMA #","SKU","Serial #","Pallet","Qty","Status","Stock Checked","Entered in System","Notes"];
+function sheetFor(list){
+  const aoa=[HEAD,...list.map(r=>{const [y,m,d]=(r.date||"").split("-").map(Number);
+    return [r.date?new Date(y,m-1,d):"",r.brand||"",r.rma||"",r.sku||"",r.serial||"",isNaN(r.pallet)||r.pallet===""?(r.pallet||""):Number(r.pallet),Number(r.qty)||0,r.status||"",r.stock||"",r.entered||"",r.notes||""]})];
+  const ws=XLSX.utils.aoa_to_sheet(aoa,{cellDates:true});
+  const last=list.length+1;
+  for(let i=2;i<=last;i++){const c=ws["A"+i];if(c&&c.t==="d")c.z="d mmm yyyy";["C","D","E"].forEach(L=>{if(ws[L+i])ws[L+i].t="s"})}
+  ws["!autofilter"]={ref:`A1:K${Math.max(last,2)}`};
+  const tr=last+2;
+  XLSX.utils.sheet_add_aoa(ws,[["Total",null,null,null,null,"Qty"]],{origin:"A"+tr});
+  ws["G"+tr]={t:"n",f:`SUBTOTAL(9,G2:G${Math.max(last,2)})`,v:list.reduce((s,r)=>s+(Number(r.qty)||0),0)};
+  ws["!ref"]=`A1:K${tr}`;
+  ws["!cols"]=HEAD.map((h,ci)=>({wch:Math.min(40,Math.max(h.length,...aoa.slice(1).map(r=>r[ci] instanceof Date?11:String(r[ci]??"").length))+2)}));
+  return ws;
+}
+async function saveXlsx(wb,name,btn){
+  const old=btn.textContent;
+  try{
+    XLSX.writeFile(wb,name);
+  }catch(e){ if(e&&e.code!=="declined"){btn.textContent="Export failed";setTimeout(()=>btn.textContent=old,2500)} }
+}
+$("exportView").onclick=()=>{
+  const list=filtered(); if(!list.length)return;
+  const brands=[...new Set(list.map(r=>r.brand))];
+  const label=brands.length===1?brands[0]:"FILTERED";
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,sheetFor(list),label.slice(0,31));
+  const dF=$("dFrom").value,dT=$("dTo").value;
+  const rng=(dF||dT)?`${dF||"start"}_to_${dT||today()}`:today();
+  saveXlsx(wb,`RMA_${label}_${rng}.xlsx`,$("exportView"));
+};
+const sheetName=(n,used)=>{let b=String(n).replace(/[\[\]:*?\/\\]/g,"-").slice(0,31)||"Sheet",x=b,i=2;while(used.has(x.toUpperCase()))x=(b.slice(0,28)+" "+i++);used.add(x.toUpperCase());return x};
+const palletSort=(a,b)=>(Number(a)||1e9)-(Number(b)||1e9)||String(a).localeCompare(String(b));
+$("exportPallets").onclick=()=>{
+  const list=filtered(); if(!list.length)return;
+  const brands=[...new Set(list.map(r=>r.brand))].sort();
+  const label=brands.length===1?brands[0]:"FILTERED";
+  const byP=new Map();
+  [...list].sort((a,b)=>palletSort(a.pallet||"",b.pallet||"")||(a.date||"").localeCompare(b.date||"")||(a.createdAt||"").localeCompare(b.createdAt||""))
+    .forEach(r=>{const k=String(r.pallet||"").trim()||"No pallet";if(!byP.has(k))byP.set(k,[]);byP.get(k).push(r)});
+  const keys=[...byP.keys()].sort(palletSort);
+  const SH=["Pallet","RMAs","Units",...STATUSES,"Missing serial","Duplicates"];
+  const dAll=dupCounts(rows);
+  const body=keys.map(k=>{const l=byP.get(k);const p=isNaN(k)?k:Number(k);
+    return [p,l.length,l.reduce((s,r)=>s+(Number(r.qty)||0),0),...STATUSES.map(st=>l.filter(r=>r.status===st).length),l.filter(r=>needsSerial(r.brand)&&!r.serial).length,l.filter(r=>dAll[unitKey(r)]>1).length]});
+  const n=body.length, tr=n+2;
+  const ws=XLSX.utils.aoa_to_sheet([SH,...body]);
+  const cols="BCDEFGHIJK".split("");
+  XLSX.utils.sheet_add_aoa(ws,[["TOTAL"]],{origin:"A"+tr});
+  cols.forEach((c,i)=>{ws[c+tr]={t:"n",f:`SUM(${c}2:${c}${n+1})`,v:body.reduce((s,r)=>s+(r[i+1]||0),0)}});
+  const dF=$("dFrom").value,dT=$("dTo").value;
+  const info=[["Brand",brands.join(", ")],["Date range",(dF||dT)?`${dF?fmtDate(dF):"start"} to ${dT?fmtDate(dT):"today"}`:"All dates"],
+    ["Status filter",$("filterStatus").selectedOptions[0].text],["Pallet filter",$("filterPallet").selectedOptions[0].text],
+    ["Check: RMA lines in this file",list.length],["Exported",new Date().toLocaleString("en-AU",{timeZone:"Australia/Sydney"})+" (Sydney)"]];
+  XLSX.utils.sheet_add_aoa(ws,info,{origin:"A"+(tr+2)});
+  ws["!ref"]=`A1:K${tr+2+info.length}`; ws["!autofilter"]={ref:`A1:K${n+1}`};
+  ws["!cols"]=[{wch:28},...cols.map((c,i)=>({wch:Math.max(8,SH[i+1].length+2)}))];ws["!cols"][0]={wch:30};
+  const wb=XLSX.utils.book_new(); const used=new Set();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName("Pallet summary",used));
+  XLSX.utils.book_append_sheet(wb,sheetFor(keys.flatMap(k=>byP.get(k))),sheetName("All pallets",used));
+  keys.forEach(k=>XLSX.utils.book_append_sheet(wb,sheetFor(byP.get(k)),sheetName(k==="No pallet"?k:"Pallet "+k,used)));
+  const rng=(dF||dT)?`${dF||"start"}_to_${dT||today()}`:today();
+  saveXlsx(wb,`RMA_${label}_Pallets_${rng}.xlsx`,$("exportPallets"));
+};
+$("exportAll").onclick=()=>{
+  if(!rows.length)return;
+  const wb=XLSX.utils.book_new();
+  const sorted=[...rows].sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.createdAt||"").localeCompare(b.createdAt||""));
+  XLSX.utils.book_append_sheet(wb,sheetFor(sorted),"All RMAs");
+  [...new Set(sorted.map(r=>r.brand).filter(Boolean))].sort().forEach(b=>XLSX.utils.book_append_sheet(wb,sheetFor(sorted.filter(r=>r.brand===b)),b.slice(0,31)));
+  saveXlsx(wb,`RMA_ALL_${today()}.xlsx`,$("exportAll"));
+};
+// ---------- 3D tilt on stat tiles ----------
+(function(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  document.querySelectorAll(".stat").forEach(el=>{
+    el.addEventListener("pointermove",e=>{const r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;el.style.transform=`rotateX(${-y*14}deg) rotateY(${x*16}deg) translateZ(6px)`});
+    el.addEventListener("pointerleave",()=>{el.style.transform=""});
+  });
+})();
+
+// ---------- 3D receiving dock ----------
+var Dock=(function(){
+  const host=$("dock"), cv=$("dockCanvas"), tip=$("dockTip");
+  const noop={update(){}};
+  if(!window.THREE){host.classList.add("no3d");return noop}
+  const T=THREE, still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let renderer;
+  try{renderer=new T.WebGLRenderer({canvas:cv,antialias:true})}catch(e){host.classList.add("no3d");return noop}
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
+  renderer.outputEncoding=T.sRGBEncoding; renderer.toneMapping=T.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+  const scene=new T.Scene(); scene.fog=new T.Fog(0xdfe4ea,22,48);
+  const cam=new T.PerspectiveCamera(38,1,0.1,120);
+  const isDark=()=>{const t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches};
+
+  // lights: soft daylight from the skylights, one sun for shadows
+  const hemi=new T.HemisphereLight(0xffffff,0x8a919a,0.8); scene.add(hemi);
+  const key=new T.DirectionalLight(0xfff3e2,1.0); key.position.set(-6,12,9); key.castShadow=true; key.shadow.mapSize.set(2048,2048); key.shadow.bias=-0.0005;
+  Object.assign(key.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:40}); scene.add(key,key.target);
+
+  function tex(w,h,draw,rep){const c=document.createElement("canvas");c.width=w;c.height=h;draw(c.getContext("2d"),w,h);const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.anisotropy=4;if(rep){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
+  function noise(g,w,h,n,a,b){for(let i=0;i<n;i++){g.fillStyle=Math.random()<.5?a:b;g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,1+Math.random()*2)}}
+  const cardSide=tex(256,256,(g,w,h)=>{g.fillStyle="#c9a06b";g.fillRect(0,0,w,h);noise(g,w,h,2200,"rgba(90,60,30,.14)","rgba(255,235,200,.12)");
+    g.strokeStyle="rgba(120,85,45,.35)";g.lineWidth=3;g.strokeRect(2,2,w-4,h-4);
+    g.fillStyle="#fbfaf7";g.fillRect(w*.12,h*.62,w*.36,h*.24);g.fillStyle="#1f2937";for(let i=0;i<14;i++)g.fillRect(w*.15+i*5.5,h*.67,i%3?2:3.5,h*.1);
+    g.fillStyle="#9ca3af";g.fillRect(w*.15,h*.8,w*.28,3)});
+  const cardBottom=new T.MeshStandardMaterial({map:cardSide,roughness:.9});
+  const floorTex=tex(512,512,(g,w,h)=>{g.fillStyle="#ffffff";g.fillRect(0,0,w,h);noise(g,w,h,7000,"rgba(0,0,0,.06)","rgba(0,0,0,.03)");g.strokeStyle="rgba(0,0,0,.09)";g.lineWidth=2;g.strokeRect(0,0,w,h)},[10,10]);
+  const doorTex=tex(256,256,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,"#b9c0c8");gr.addColorStop(1,"#9aa2ac");g.fillStyle=gr;g.fillRect(0,0,w,h);for(let y=0;y<h;y+=14){g.fillStyle="rgba(0,0,0,.18)";g.fillRect(0,y,w,2);g.fillStyle="rgba(255,255,255,.3)";g.fillRect(0,y+2,w,1)}});
+  function labelTex(lines,dark){return tex(512,192,(g,w,h)=>{g.clearRect(0,0,w,h);const r=18,x=8,y=8,W=w-16,H=h-16;
+    g.fillStyle=dark?"#1a222d":"#ffffff";g.strokeStyle=dark?"#2f3b4d":"#cfd7e2";g.lineWidth=4;g.beginPath();g.moveTo(x+r,y);g.arcTo(x+W,y,x+W,y+H,r);g.arcTo(x+W,y+H,x,y+H,r);g.arcTo(x,y+H,x,y,r);g.arcTo(x,y,x+W,y,r);g.closePath();g.fill();g.stroke();
+    g.textAlign="center";g.fillStyle=dark?"#e6ebf2":"#0f1b2d";g.font="700 60px Inter, system-ui, sans-serif";g.fillText(lines[0],w/2,92);
+    g.fillStyle=dark?"#93a1b5":"#5b6b80";g.font="500 36px Inter, system-ui, sans-serif";g.fillText(lines[1]||"",w/2,148)})}
+  const signTex=tex(512,192,(g,w,h)=>{g.fillStyle="#1e3a6e";g.fillRect(0,0,w,h);g.fillStyle="#ffffff";g.textAlign="center";g.font="700 70px Inter, system-ui, sans-serif";g.fillText("DOCK 01",w/2,96);g.fillStyle="#c7d6f2";g.font="500 36px Inter, system-ui, sans-serif";g.fillText("RETURNS RECEIVING",w/2,150)});
+  const neon=c=>new T.MeshBasicMaterial({color:c});
+
+  // floor, wall, dock door
+  const floorMat=new T.MeshStandardMaterial({map:floorTex,roughness:.85,metalness:.05});
+  const floor=new T.Mesh(new T.PlaneGeometry(80,80),floorMat);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+  const wallMat=new T.MeshStandardMaterial({roughness:.9});
+  const wall=new T.Mesh(new T.BoxGeometry(60,10,.4),wallMat);wall.position.set(0,5,-6.2);wall.receiveShadow=true;scene.add(wall);
+  const door=new T.Mesh(new T.PlaneGeometry(4.4,4.2),new T.MeshStandardMaterial({map:doorTex,roughness:.5,metalness:.4}));door.position.set(0,2.1,-5.99);scene.add(door);
+  const frameSteel=new T.MeshStandardMaterial({color:0x4b5563,metalness:.6,roughness:.4});
+  for(const x of [-2.35,2.35]){const t=new T.Mesh(new T.BoxGeometry(.2,4.4,.2),frameSteel);t.position.set(x,2.2,-5.9);t.castShadow=true;scene.add(t)}
+  const lin=new T.Mesh(new T.BoxGeometry(4.9,.2,.2),frameSteel);lin.position.set(0,4.4,-5.9);scene.add(lin);
+  const sign=new T.Mesh(new T.PlaneGeometry(2.8,1.05),new T.MeshBasicMaterial({map:signTex}));sign.position.set(0,5.4,-5.98);scene.add(sign);
+  const bump=new T.MeshStandardMaterial({color:0x1f2937,roughness:.8});
+  for(const x of [-1.6,1.6]){const b=new T.Mesh(new T.BoxGeometry(.5,.6,.3),bump);b.position.set(x,.5,-5.85);scene.add(b)}
+  // painted floor markings
+  const paint=new T.MeshStandardMaterial({color:0xe0b100,roughness:.7});
+  function stripe(w,d,x,z){const m=new T.Mesh(new T.PlaneGeometry(w,d),paint);m.rotation.x=-Math.PI/2;m.position.set(x,.004,z);scene.add(m)}
+  stripe(.08,5.1,-.8,-3.4);stripe(.08,5.1,.8,-3.4);
+
+  // conveyor
+  const frameMat=new T.MeshStandardMaterial({color:0x5b6573,metalness:.6,roughness:.4});
+  const rollerMat=new T.MeshStandardMaterial({color:0xc4cad2,metalness:.85,roughness:.3});
+  const CZ0=-6,CZ1=-.9,CY=.62;
+  for(const x of [-.58,.58]){const r=new T.Mesh(new T.BoxGeometry(.08,.16,CZ1-CZ0),frameMat);r.position.set(x,CY-.04,(CZ0+CZ1)/2);r.castShadow=true;scene.add(r)}
+  for(let z=CZ0+.4;z<CZ1;z+=1.2)for(const x of [-.55,.55]){const l=new T.Mesh(new T.BoxGeometry(.07,CY,.07),frameMat);l.position.set(x,CY/2-.06,z);l.castShadow=true;scene.add(l)}
+  const rollers=[];const rg=new T.CylinderGeometry(.05,.05,1.08,12);
+  for(let z=CZ0+.1;z<CZ1;z+=.18){const r=new T.Mesh(rg,rollerMat);r.rotation.z=Math.PI/2;r.position.set(0,CY-.02,z);scene.add(r);rollers.push(r)}
+
+  // pallets + cartons (status shown as coloured tape on the lid)
+  const palMat=new T.MeshStandardMaterial({color:0xb08a5a,roughness:.85});
+  function makePallet(){const g=new T.Group();
+    for(const x of [-.6,0,.6]){const s=new T.Mesh(new T.BoxGeometry(.14,.1,1.3),palMat);s.position.set(x,.05,0);s.castShadow=s.receiveShadow=true;g.add(s)}
+    for(let i=0;i<7;i++){const b=new T.Mesh(new T.BoxGeometry(1.3,.035,.15),palMat);b.position.set(0,.118,-.57+i*.19);b.castShadow=b.receiveShadow=true;g.add(b)}
+    const hit=new T.Mesh(new T.BoxGeometry(1.4,.2,1.4),new T.MeshBasicMaterial({visible:false}));hit.position.y=.1;g.add(hit);g.userData.hit=hit;
+    const ring=new T.Mesh(new T.RingGeometry(1.0,1.08,48),new T.MeshBasicMaterial({color:0x1e4fa8,transparent:true,opacity:.9,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.01;ring.visible=false;g.add(ring);g.userData.ring=ring;
+    return g}
+  const STC={"Received":"#2563eb","Sent to Brand":"#7c3aed","Credit Pending":"#d97706","Credited":"#16a34a","Rejected":"#dc2626","Closed":"#64748b"};
+  const sideMat=new T.MeshStandardMaterial({map:cardSide,roughness:.9});
+  const mats={};
+  function matFor(st){if(mats[st])return mats[st];const col=STC[st]||"#2563eb";
+    const lid=tex(256,256,(g,w,h)=>{g.fillStyle="#c9a06b";g.fillRect(0,0,w,h);noise(g,w,h,1800,"rgba(90,60,30,.14)","rgba(255,235,200,.12)");g.fillStyle="rgba(120,85,45,.35)";g.fillRect(0,h/2-1,w,2);g.fillStyle=col;g.fillRect(w*.38,0,w*.24,h)});
+    const lidMat=new T.MeshStandardMaterial({map:lid,roughness:.8});
+    const front=tex(256,256,(g,w,h)=>{g.drawImage(cardSide.image,0,0);g.fillStyle=col;g.fillRect(w*.38,0,w*.24,h*.22)});
+    const frontMat=new T.MeshStandardMaterial({map:front,roughness:.85});
+    return mats[st]=[sideMat,sideMat,lidMat,cardBottom,frontMat,frontMat]}
+  const S=.4, boxGeo=new T.BoxGeometry(S,S,S);
+  const hl=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(S*1.08,S*1.08,S*1.08)),new T.LineBasicMaterial({color:0x1e4fa8}));hl.visible=false;scene.add(hl);
+  function applyTheme(){const d=isDark();
+    const bg=d?0x161d27:0xdfe4ea; scene.background=new T.Color(bg); scene.fog.color.setHex(bg);
+    floorMat.color.setHex(d?0x252b33:0xc9ced5); wallMat.color.setHex(d?0x1a2029:0xeef1f4);
+    hemi.intensity=d?.55:.8; key.intensity=d?.75:1.0; hl.material.color.setHex(d?0x7aa7ff:0x1e4fa8);
+    try{for(const P of pallets.values())P.labelKey="";if(lastArgs)update(...lastArgs)}catch(e){}}
+  applyTheme();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+  // ---------- forklift: carries each new crate from the conveyor to its pallet ----------
+  const FK=(function(){
+    const g=new T.Group();
+    const body=new T.MeshStandardMaterial({color:0xf2b705,metalness:.25,roughness:.45});
+    const trim=new T.MeshStandardMaterial({color:0x1f2937,roughness:.6}), lightC=new T.MeshBasicMaterial({color:0xfff7e0});
+    const chassis=new T.Mesh(new T.BoxGeometry(.72,.28,1.0),body);chassis.position.set(0,.26,-.05);chassis.castShadow=true;g.add(chassis);
+    const counter=new T.Mesh(new T.BoxGeometry(.72,.36,.3),new T.MeshStandardMaterial({color:0x2b2f36,roughness:.6}));counter.position.set(0,.32,-.48);counter.castShadow=true;g.add(counter);
+    for(const [x,z] of [[-.32,-.3],[.32,-.3],[-.32,.25],[.32,.25]]){const q=new T.Mesh(new T.BoxGeometry(.04,.62,.04),body);q.position.set(x,.71,z);g.add(q)}
+    const roof=new T.Mesh(new T.BoxGeometry(.72,.04,.62),body);roof.position.set(0,1.03,-.02);roof.castShadow=true;g.add(roof);
+    const roofGlow=new T.Mesh(new T.BoxGeometry(.74,.015,.64),trim);roofGlow.position.set(0,1.055,-.02);g.add(roofGlow);
+    const seat=new T.Mesh(new T.BoxGeometry(.32,.08,.3),new T.MeshStandardMaterial({color:0x111018}));seat.position.set(0,.44,-.12);g.add(seat);
+        for(const x of [-.365,.365]){const st=new T.Mesh(new T.BoxGeometry(.01,.03,1.0),trim);st.position.set(x,.2,-.05);g.add(st)}
+    const wg=new T.CylinderGeometry(.13,.13,.1,16), wm=new T.MeshStandardMaterial({color:0x0b0a10,roughness:.8});
+    const wheels=[];for(const [x,z] of [[-.38,.25],[.38,.25],[-.38,-.38],[.38,-.38]]){const w=new T.Mesh(wg,wm);w.rotation.z=Math.PI/2;w.position.set(x,.13,z);g.add(w);wheels.push(w)}
+    for(const x of [-.24,.24]){const h=new T.Mesh(new T.BoxGeometry(.1,.05,.02),lightC);h.position.set(x,.32,.46);g.add(h)}
+    const beacon=new T.Mesh(new T.CylinderGeometry(.045,.045,.07,10),new T.MeshBasicMaterial({color:0xff8a00}));beacon.position.set(0,1.1,-.25);g.add(beacon);
+    const mastM=new T.MeshStandardMaterial({color:0x3f4650,metalness:.7,roughness:.35});
+    for(const x of [-.26,.26]){const m=new T.Mesh(new T.BoxGeometry(.06,1.35,.06),mastM);m.position.set(x,.72,.5);m.castShadow=true;g.add(m)}
+    const inner=new T.Group();g.add(inner);
+    for(const x of [-.2,.2]){const m=new T.Mesh(new T.BoxGeometry(.05,1.3,.05),mastM);m.position.set(x,.65,.54);inner.add(m)}
+    const car=new T.Group();g.add(car);
+    const plate=new T.Mesh(new T.BoxGeometry(.52,.32,.04),mastM);plate.position.set(0,.16,.58);car.add(plate);
+    const forkM=new T.MeshStandardMaterial({color:0x8a86a8,metalness:.9,roughness:.25});
+    for(const x of [-.14,.14]){const f=new T.Mesh(new T.BoxGeometry(.08,.03,.62),forkM);f.position.set(x,.015,.89);f.castShadow=true;car.add(f);}
+    scene.add(g);
+    return {g,car,inner,wheels,beacon};
+  })();
+  const HOME={x:2.2,z:.7,h:-Math.PI/2}, END_Z=CZ1-.25, REACH=.85, LIFT0=.08, AISLE=.75, BELT=1.6, SPEED=2.2, TURN=4.5;
+  const fork={x:HOME.x,z:HOME.z,h:HOME.h,lift:LIFT0,job:null,segs:[],seg:null};
+  const convQ=[];
+  const angDiff=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d};
+  function planJob(B){
+    const d=B.drop, sg=[];
+    sg.push({mv:[0,AISLE],lift:CY-.03});
+    sg.push({mv:[0,END_Z+REACH]});
+    sg.push({grab:1});
+    sg.push({lift:CY+.12});
+    sg.push({mv:[0,AISLE],rev:1});
+    if(d.row>0){sg.push({mv:[d.side,AISLE]});sg.push({mv:[d.side,d.lane]})}
+    sg.push({mv:[d.tx,d.lane]});
+    sg.push({mv:[d.tx,d.tz-REACH],lift:d.ty-S/2-.03});
+    sg.push({drop:1});
+    sg.push({mv:[d.tx,d.lane],rev:1,lift:LIFT0});
+    if(d.row>0){sg.push({mv:[d.side,d.lane]});sg.push({mv:[d.side,AISLE]})}
+    sg.push({mv:[HOME.x,HOME.z]});
+    sg.push({face:HOME.h});
+    return sg;
+  }
+  function stepFork(dt,now){
+    if(!fork.seg){
+      if(fork.segs.length)fork.seg=fork.segs.shift();
+      else if(convQ.length&&convQ[0].arrived){const B=convQ.shift();B.state="waiting";fork.job={B};fork.segs=planJob(B);fork.seg=fork.segs.shift()}
+    }
+    const s=fork.seg;
+    if(s){
+      let moveDone=true,liftDone=true,faceDone=true;
+      if(s.lift!==undefined){const d=s.lift-fork.lift,st=1.4*dt;if(Math.abs(d)>st){fork.lift+=Math.sign(d)*st;liftDone=false}else fork.lift=s.lift}
+      if(s.mv){const dx=s.mv[0]-fork.x,dz=s.mv[1]-fork.z,dist=Math.hypot(dx,dz);
+        if(dist>.005){const want=s.rev?Math.atan2(-dx,-dz):Math.atan2(dx,dz),ad=angDiff(fork.h,want);
+          if(Math.abs(ad)>.02&&dist>.06){fork.h+=Math.sign(ad)*Math.min(Math.abs(ad),TURN*dt);moveDone=false}
+          else{const st=Math.min(dist,SPEED*dt);fork.x+=dx/dist*st;fork.z+=dz/dist*st;for(const w of FK.wheels)w.rotation.x+=(s.rev?-1:1)*st/.13;moveDone=dist-st<.005}}}
+      if(s.face!==undefined){const ad=angDiff(fork.h,s.face);if(Math.abs(ad)>.01){fork.h+=Math.sign(ad)*Math.min(Math.abs(ad),TURN*dt);faceDone=false}}
+      if(s.grab&&fork.job&&fork.job.B)fork.job.B.state="carried";
+      if(s.drop&&fork.job&&fork.job.B){const B=fork.job.B;B.state="placed";fork.job.B=null;scanAt(B.target)}
+      if(moveDone&&liftDone&&faceDone){fork.seg=null;if(!fork.segs.length)fork.job=null}
+    }
+    FK.g.position.set(fork.x,0,fork.z);FK.g.rotation.y=fork.h;FK.car.position.y=fork.lift;FK.inner.position.y=Math.max(0,fork.lift-.55);
+    FK.beacon.visible=!fork.job||Math.floor(now/300)%2===0;
+    if(fork.job&&fork.job.B&&fork.job.B.state==="carried"){const m=fork.job.B.mesh;m.position.set(fork.x+Math.sin(fork.h)*REACH,fork.lift+.03+S/2,fork.z+Math.cos(fork.h)*REACH);m.rotation.y=fork.h}
+  }
+  function stepConveyor(now,dt){
+    convQ.forEach((B,i)=>{const m=B.mesh;if(now<B.t0){m.visible=false;return}m.visible=true;
+      const want=END_Z-i*(S+.08);m.position.x=0;m.position.y=CY+S/2;
+      m.position.z=Math.min(want,m.position.z+BELT*dt);B.arrived=i===0&&Math.abs(m.position.z-END_Z)<.005});
+  }
+
+  // ---------- scanner drones ----------
+  const drones=[];
+  function makeDrone(col){const g=new T.Group();
+    const bm=new T.MeshStandardMaterial({color:0xe5e7eb,metalness:.3,roughness:.4});
+    g.add(new T.Mesh(new T.CylinderGeometry(.14,.18,.08,16),bm));
+    const eye=new T.Mesh(new T.SphereGeometry(.05,12,8),neon(col));eye.position.y=-.06;g.add(eye);
+    const ring=new T.Mesh(new T.TorusGeometry(.17,.012,6,24),new T.MeshStandardMaterial({color:0x374151}));ring.rotation.x=Math.PI/2;g.add(ring);
+    const rotors=[];
+    for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;const arm=new T.Mesh(new T.BoxGeometry(.3,.02,.03),bm);arm.position.set(Math.cos(a)*.18,0,Math.sin(a)*.18);arm.rotation.y=-a;g.add(arm);
+      const r=new T.Mesh(new T.CylinderGeometry(.11,.11,.005,16),new T.MeshBasicMaterial({color:0x9ca3af,transparent:true,opacity:.35}));r.position.set(Math.cos(a)*.32,.03,Math.sin(a)*.32);g.add(r);rotors.push(r)}
+    const cone=new T.Mesh(new T.ConeGeometry(.5,1.6,24,1,true),new T.MeshBasicMaterial({color:col,transparent:true,opacity:.05,depthWrite:false,side:T.DoubleSide}));cone.position.y=-.85;g.add(cone);
+    scene.add(g);
+    const D={g,cone,col,rotors,pos:new T.Vector3((Math.random()-.5)*6,3,1.5+Math.random()*3),goal:new T.Vector3(),next:0,scanUntil:0,phase:Math.random()*6};
+    D.goal.copy(D.pos);g.position.copy(D.pos);return D;
+  }
+  [0x3b82f6,0x3b82f6].forEach(c=>drones.push(makeDrone(c)));
+  function pickGoal(D){const ps=[...pallets.values()];
+    if(ps.length){const P=ps[Math.floor(Math.random()*ps.length)].group.position;D.goal.set(P.x+(Math.random()-.5)*.8,2.7+Math.random()*1.2,P.z+(Math.random()-.5)*.8)}
+    else D.goal.set((Math.random()-.5)*6,3,1+Math.random()*3)}
+  function scanAt(v){let best=null,bd=1e9;for(const D of drones){const d=D.pos.distanceTo(v);if(d<bd){bd=d;best=D}}
+    if(best){const n=performance.now();best.goal.set(v.x,v.y+1.9,v.z);best.next=n+4200;best.scanUntil=n+3200}}
+  function stepDrones(now,dt){for(const D of drones){
+    if(now>D.next){pickGoal(D);D.next=now+4500+Math.random()*4500}
+    D.pos.lerp(D.goal,Math.min(1,dt*.9));
+    D.g.position.set(D.pos.x,D.pos.y+Math.sin(now/600+D.phase)*.08,D.pos.z);
+    for(const r of D.rotors)r.rotation.y+=dt*40;
+    const scanning=now<D.scanUntil,m=D.cone.material;
+    m.opacity+=((scanning?.2:.04)-m.opacity)*Math.min(1,dt*4);m.color.setHex(scanning?0x16a34a:D.col);
+    D.cone.scale.set(scanning?1+.08*Math.sin(now/90):1,1,scanning?1+.08*Math.sin(now/90):1);
+  }}
+
+  const pallets=new Map(), boxes=new Map();
+  let placed=false, center=new T.Vector3(0,.5,1.5), radius=11, theta=0.42, elev=0.5, lastInteract=0;
+  function palletKey(r){return String(r.pallet||"").trim()||"—"}
+  let lastArgs=null;
+  function update(rows,selPallet){
+    lastArgs=[rows,selPallet];
+    if(!window.__gotData)return;
+    const groups=new Map();
+    [...rows].sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||"")).forEach(r=>{const k=palletKey(r);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+    const keys=[...groups.keys()].sort((a,b)=>(Number(a)||1e9)-(Number(b)||1e9)||a.localeCompare(b));
+    const cols=Math.min(6,Math.max(1,keys.length)), SP=2.3;
+    const seen=new Set(); let delay=0, maxZ=2.6;
+    keys.forEach((k,i)=>{
+      const col=i%cols,row=Math.floor(i/cols);const px=(col-(cols-1)/2)*SP, pz=2.6+row*2.6; maxZ=Math.max(maxZ,pz);
+      let P=pallets.get(k); if(!P){P={group:makePallet()};scene.add(P.group);pallets.set(k,P)}
+      P.group.position.set(px,0,pz);P.group.userData.hit.userData={pallet:k};
+      P.group.userData.ring.visible=selPallet!==""&&selPallet===k;
+      const list=groups.get(k), units=list.reduce((s,r)=>s+(Number(r.qty)||0),0);
+      const lk=k+"|"+list.length+"|"+units;
+      if(P.labelKey!==lk){if(P.label){scene.remove(P.label);P.label.material.map.dispose();P.label.material.dispose()}
+        const sp=new T.Sprite(new T.SpriteMaterial({map:labelTex([k==="—"?"No pallet":"Pallet "+k,list.length+" RMA lines · "+units+" units"],isDark()),depthTest:false}));sp.scale.set(1.7,.64,1);sp.renderOrder=10;scene.add(sp);P.label=sp;P.labelKey=lk}
+      const layers=Math.min(6,Math.ceil(Math.min(list.length,54)/9));
+      P.label.position.set(px,.35+layers*(S+.015)+.55,pz);
+      list.forEach((r,idx)=>{
+        if(idx>=54)return; seen.add(r.id);
+        const gx=idx%3,gz=Math.floor(idx/3)%3,ly=Math.floor(idx/9);
+        const tgt=new T.Vector3(px+(gx-1)*(S+.03),.135+ly*(S+.012)+S/2,pz+(gz-1)*(S+.03));
+        let B=boxes.get(r.id);
+        if(!B){const m=new T.Mesh(boxGeo,matFor(r.status));m.castShadow=m.receiveShadow=true;m.rotation.y=(Math.random()-.5)*.08;m.userData.id=r.id;
+          scene.add(m);B={mesh:m};boxes.set(r.id,B);
+          if(placed&&!still&&convQ.length<6){B.state="conveyor";B.t0=performance.now()+delay;delay+=450;m.position.set(0,CY+S/2,CZ0+.2);m.visible=false;convQ.push(B)}else{B.state="placed";m.position.copy(tgt)}}
+        B.row=r;B.target=tgt;B.drop={tx:tgt.x,ty:tgt.y,tz:tgt.z,row,lane:pz-1.75,side:((cols-1)/2)*SP+1.9};const mm=matFor(r.status);if(B.mesh.material!==mm)B.mesh.material=mm;
+      });
+    });
+    for(const[id,B]of boxes)if(!seen.has(id)){scene.remove(B.mesh);boxes.delete(id);const qi=convQ.indexOf(B);if(qi>=0)convQ.splice(qi,1);if(fork.job&&fork.job.B===B)fork.job.B=null}
+    for(const[k,P]of pallets)if(!groups.has(k)){scene.remove(P.group);if(P.label)scene.remove(P.label);pallets.delete(k)}
+    const width=(cols-1)*SP+2;center.set(0,.6,(maxZ-1.2)/2+.4);radius=Math.max(9.5,width*.9+(maxZ-2.6)*.8+4.5);
+    placed=true; $("dockCount").textContent=`${keys.length} pallet${keys.length===1?"":"s"} · ${rows.length} RMA lines`;
+    host.classList.toggle("empty3d",!rows.length);
+  }
+  function stepBox(B){
+    if(B.state==="conveyor"||B.state==="waiting"||B.state==="carried")return;
+    B.mesh.position.lerp(B.target,.12);
+  }
+
+
+  // interaction
+  const ray=new T.Raycaster(), ptr=new T.Vector2(); let drag=null;
+  function pick(e){const r=cv.getBoundingClientRect();ptr.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ptr,cam);
+    const targets=[...[...boxes.values()].map(b=>b.mesh),...[...pallets.values()].map(p=>p.group.userData.hit)];
+    const h=ray.intersectObjects(targets,false)[0];return h?h.object:null}
+  cv.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,th:theta,el:elev,moved:false}});
+  addEventListener("pointerup",e=>{if(drag&&!drag.moved&&e.target===cv){const o=pick(e);if(o){const k=o.userData.pallet||palletKey((boxes.get(o.userData.id)||{}).row||{});const f=$("filterPallet");f.value=f.value===k?"":k;if(k==="—")f.value="";render();$("register").scrollIntoView({behavior:still?"auto":"smooth",block:"start"})}}drag=null});
+  cv.addEventListener("pointermove",e=>{
+    if(drag&&e.pointerType==="mouse"&&e.buttons){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>4)drag.moved=true;theta=drag.th-dx*.006;elev=Math.min(1.1,Math.max(.18,drag.el+dy*.004));lastInteract=performance.now();tip.hidden=true;return}
+    if(drag&&e.pointerType!=="mouse"){const dx=e.clientX-drag.x;if(Math.abs(dx)>6){drag.moved=true;theta=drag.th-dx*.006;lastInteract=performance.now()}}
+    const o=pick(e);
+    if(o&&o.userData.id){const r=boxes.get(o.userData.id).row;hl.visible=true;hl.position.copy(o.position);hl.rotation.copy(o.rotation);
+      tip.innerHTML=`<b>${esc(r.rma)}</b><span>${esc(r.brand)} · ${esc(r.sku||"no SKU")}${r.serial?" · "+esc(r.serial):""}</span><span class="tst" data-s="${esc(r.status)}">${esc(r.status)}</span>`;}
+    else if(o&&o.userData.pallet){hl.visible=false;const k=o.userData.pallet;tip.innerHTML=`<b>${k==="—"?"No pallet":"Pallet "+esc(k)}</b><span>Click to show only this pallet</span>`}
+    else{hl.visible=false;tip.hidden=true;cv.style.cursor="grab";return}
+    cv.style.cursor="pointer";const hr=host.getBoundingClientRect();tip.hidden=false;
+    tip.style.left=Math.min(hr.width-220,e.clientX-hr.left+14)+"px";tip.style.top=(e.clientY-hr.top+14)+"px";
+  });
+  cv.addEventListener("pointerleave",()=>{tip.hidden=true;hl.visible=false});
+
+  const composer=null;
+  function size(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);if(composer)composer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+  new ResizeObserver(size).observe(host);size();
+  let visible=true;new IntersectionObserver(es=>{visible=es[0].isIntersecting}).observe(host);
+  function frame(now){
+    requestAnimationFrame(frame);
+    if(!visible||document.hidden)return;
+    if(!still&&now-lastInteract>4000&&!drag)theta+=0.0009*Math.sin(now/9000+1)*1.2;
+    const r=radius*(cam.aspect<1?1.45:1);
+    cam.position.set(center.x+Math.sin(theta)*Math.cos(elev)*r,center.y+Math.sin(elev)*r,center.z+Math.cos(theta)*Math.cos(elev)*r);
+    cam.lookAt(center.x,center.y-.2,center.z-1);
+    const dt=Math.min(.05,(now-(frame.last||now))/1000);frame.last=now;
+    stepConveyor(now,dt);if(!still){stepFork(dt*(1+Math.min(3,convQ.length*.7)),now);stepDrones(now,dt)}
+    const moving=convQ.some(b=>b.mesh.visible&&!b.arrived);
+    for(const rl of rollers)rl.rotation.x+=moving?.25:.02;
+    for(const B of boxes.values())stepBox(B);
+    for(const P of pallets.values())if(P.group.userData.ring.visible)P.group.userData.ring.material.opacity=.6+.3*Math.sin(now/400);
+    key.target.position.set(center.x,0,center.z);
+    composer?composer.render():renderer.render(scene,cam);
+  }
+  requestAnimationFrame(frame);
+  return {update};
+})();
+render();
+</script>
+</body>
+</html>
